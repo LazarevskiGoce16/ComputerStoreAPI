@@ -1,0 +1,14 @@
+@ComputerStoreAPI_HostAddress = https://localhost:7266
+
+GET {{ComputerStoreAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
+
+GET {{ComputerStoreAPI_HostAddress}}/weatherforecast
+
+###
+
+GET {{ComputerStoreAPI_HostAddress}}/api/categories
+
+###
