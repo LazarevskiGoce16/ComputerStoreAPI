@@ -1,62 +1,59 @@
-﻿using AutoMapper;
-using ComputerStoreAPI.Data;
+﻿using ComputerStoreAPI.Data;
 using ComputerStoreAPI.DTOs;
 using ComputerStoreAPI.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace ComputerStoreAPI.Services
+public class CategoryService
 {
-    public class CategoryService : ICategoryService
+    private readonly DataContext _db;
+    public CategoryService(DataContext db) { _db = db; }
+
+    public async Task<List<CategoryDto>> GetAllAsync()
     {
-        private readonly DataContext _context;
-        private readonly IMapper _mapper;
-
-        public CategoryService(DataContext context, IMapper mapper)
+        return await _db.Categories.Select(c => new CategoryDto
         {
-            _context = context;
-            _mapper = mapper;
-        }
+            Id = c.Id,
+            Name = c.Name,
+            Description = c.Description
+        }).ToListAsync();
+    }
 
-        public async Task<List<CategoryResponseDto>> GetAllCategoriesAsync()
-        {
-            var categories = await _context.Categories.ToListAsync();
-            return _mapper.Map<List<CategoryResponseDto>>(categories);
-        }
+    public async Task<CategoryDto?> GetAsync(int id)
+    {
+        var c = await _db.Categories.FindAsync(id);
+        if (c == null) return null;
+        return new CategoryDto { Id = c.Id, Name = c.Name, Description = c.Description };
+    }
 
-        public async Task<CategoryResponseDto?> GetCategoryByIdAsync(int id)
-        {
-            var category = await _context.Categories.FindAsync(id);
-            return category == null ? null : _mapper.Map<CategoryResponseDto>(category);
-        }
+    public async Task<CategoryDto> CreateAsync(CategoryDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            throw new ArgumentException("Category name is required.");
+        var c = new Category { Name = dto.Name, Description = dto.Description };
+        _db.Categories.Add(c);
+        await _db.SaveChangesAsync();
+        dto.Id = c.Id;
+        return dto;
+    }
 
-        public async Task<List<CategoryResponseDto>> CreateCategoryAsync(CategoryDto categoryDto)
-        {
-            var category = _mapper.Map<Category>(categoryDto);
-            _context.Categories.Add(category);
-            await _context.SaveChangesAsync();
-            return await GetAllCategoriesAsync();
-        }
+    public async Task<bool> UpdateAsync(int id, CategoryDto dto)
+    {
+        var c = await _db.Categories.FindAsync(id);
+        if (c == null) return false;
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            throw new ArgumentException("Category name is required.");
+        c.Name = dto.Name;
+        c.Description = dto.Description;
+        await _db.SaveChangesAsync();
+        return true;
+    }
 
-        public async Task<List<CategoryResponseDto>> UpdateCategoryAsync(int id, CategoryDto categoryDto)
-        {
-            var category = await _context.Categories.FindAsync(id);
-            if (category == null) return null;
-
-            _mapper.Map(categoryDto, category);
-            await _context.SaveChangesAsync();
-
-            return await GetAllCategoriesAsync();
-        }
-
-        public async Task<List<CategoryResponseDto>> DeleteCategoryAsync(int id)
-        {
-            var category = await _context.Categories.FindAsync(id);
-            if (category == null) return null;
-
-            _context.Categories.Remove(category);
-            await _context.SaveChangesAsync();
-
-            return await GetAllCategoriesAsync();
-        }
+    public async Task<bool> DeleteAsync(int id)
+    {
+        var c = await _db.Categories.FindAsync(id);
+        if (c == null) return false;
+        _db.Categories.Remove(c);
+        await _db.SaveChangesAsync();
+        return true;
     }
 }

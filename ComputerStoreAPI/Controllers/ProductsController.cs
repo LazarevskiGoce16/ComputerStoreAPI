@@ -1,57 +1,61 @@
 ﻿using ComputerStoreAPI.DTOs;
-using ComputerStoreAPI.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
-namespace ComputerStoreAPI.Controllers
+[ApiController]
+[Route("api/[controller]")]
+public class ProductsController : ControllerBase
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class ProductsController : ControllerBase
+    private readonly ProductService _service;
+
+    public ProductsController(ProductService service) { _service = service; }
+
+    [HttpGet]
+    public async Task<IActionResult> Get() => Ok(await _service.GetAllAsync());
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> Get(int id)
     {
-        private readonly IProductService _productService;
+        var p = await _service.GetAsync(id);
+        if (p == null) return NotFound(new { error = "Product not found" });
+        return Ok(p);
+    }
 
-        public ProductsController(IProductService productService)
-        {
-            _productService = productService;
+    [HttpPost]
+    public async Task<IActionResult> Post(ProductDto dto)
+    {
+        try 
+        { 
+            return Ok(await _service.CreateAsync(dto)); 
         }
+        catch (Exception ex) 
+        { 
+            return BadRequest(new { error = ex.Message }); 
+        }
+        /*catch (DbUpdateException ex)
+        {
+            var innerMessage = ex.InnerException?.Message ?? ex.Message;
+            throw new Exception($"Database update failed: {innerMessage}");
+        } */
+    }
 
-        [HttpGet]
-        public async Task<ActionResult<List<ProductResponseDto>>> GetAllProducts()
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Put(int id, ProductDto dto)
+    {
+        try
         {
-            return Ok(await _productService.GetAllProductsAsync());
+            var updated = await _service.UpdateAsync(id, dto);
+            if (!updated) return NotFound(new { error = "Product not found" });
+            return Ok();
         }
+        catch (Exception ex) { return BadRequest(new { error = ex.Message }); }
+    }
 
-        [HttpGet("{id}")]
-        public async Task<ActionResult<ProductResponseDto>> GetProductById(int id)
-        {
-            var product = await _productService.GetProductByIdAsync(id);
-            if (product == null)
-                return NotFound("Product not found!");
-            return Ok(product);
-        }
-
-        [HttpPost]
-        public async Task<ActionResult<List<ProductResponseDto>>> CreateProduct([FromBody] ProductDto productDto)
-        {
-            return Ok(await _productService.CreateProductAsync(productDto));
-        }
-
-        [HttpPut("{id}")]
-        public async Task<ActionResult<List<ProductResponseDto>>> UpdateProduct(int id, [FromBody] ProductDto productDto)
-        {
-            var result = await _productService.UpdateProductAsync(id, productDto);
-            if (result == null)
-                return NotFound("Product not found!");
-            return Ok(result);
-        }
-
-        [HttpDelete("{id}")]
-        public async Task<ActionResult<List<ProductResponseDto>>> DeleteProduct(int id)
-        {
-            var result = await _productService.DeleteProductAsync(id);
-            if (result == null)
-                return NotFound("Product not found!");
-            return Ok(result);
-        }
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var deleted = await _service.DeleteAsync(id);
+        if (!deleted) return NotFound(new { error = "Product not found" });
+        return Ok();
     }
 }

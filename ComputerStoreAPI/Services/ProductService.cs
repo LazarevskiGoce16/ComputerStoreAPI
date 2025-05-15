@@ -1,63 +1,89 @@
-﻿using AutoMapper;
-using ComputerStoreAPI.Data;
+﻿using ComputerStoreAPI.Data;
 using ComputerStoreAPI.DTOs;
 using ComputerStoreAPI.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace ComputerStoreAPI.Services
+public class ProductService
 {
-    public class ProductService : IProductService
+    private readonly DataContext _db;
+    public ProductService(DataContext db) { _db = db; }
+
+    public async Task<List<ProductDto>> GetAllAsync()
     {
-        private readonly DataContext _context;
-        private readonly IMapper _mapper;
+        return await _db.Products
+            .Include(p => p.ProductCategories)
+            .Select(p => new ProductDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Description = p.Description,
+                Price = p.Price,
+                Stock = p.Stock,
+                CategoryIds = p.ProductCategories.Select(pc => pc.CategoryId).ToList()
+            }).ToListAsync();
+    }
 
-        public ProductService(DataContext context, IMapper mapper)
+    public async Task<ProductDto?> GetAsync(int id)
+    {
+        var p = await _db.Products.Include(p => p.ProductCategories)
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (p == null) return null;
+        return new ProductDto
         {
-            _context = context;
-            _mapper = mapper;
+            Id = p.Id,
+            Name = p.Name,
+            Description = p.Description,
+            Price = p.Price,
+            Stock = p.Stock,
+            CategoryIds = p.ProductCategories.Select(pc => pc.CategoryId).ToList()
+        };
+    }
 
-        }
+    public async Task<ProductDto> CreateAsync(ProductDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Name) || dto.Price <= 0 || dto.CategoryIds == null || !dto.CategoryIds.Any())
+            throw new ArgumentException("Name, price, and at least one category are required.");
 
-        public async Task<List<ProductResponseDto>> GetAllProductsAsync()
+        var product = new Product
         {
-            var products = await _context.Products.ToListAsync();
-            return _mapper.Map<List<ProductResponseDto>>(products);
-        }
+            Name = dto.Name,
+            Description = dto.Description,
+            Price = dto.Price,
+            Stock = dto.Stock,
+            ProductCategories = dto.CategoryIds.Select(cid => new ProductCategory { CategoryId = cid }).ToList()
+        };
+        _db.Products.Add(product);
+        await _db.SaveChangesAsync();
+        dto.Id = product.Id;
+        return dto;
+    }
 
-        public async Task<ProductResponseDto?> GetProductByIdAsync(int id)
-        {
-            var product = await _context.Products.FindAsync(id);
-            return product == null ? null : _mapper.Map<ProductResponseDto>(product);
-        }
+    public async Task<bool> UpdateAsync(int id, ProductDto dto)
+    {
+        var p = await _db.Products.Include(p => p.ProductCategories).FirstOrDefaultAsync(p => p.Id == id);
+        if (p == null) return false;
+        if (string.IsNullOrWhiteSpace(dto.Name) || dto.Price <= 0 || dto.CategoryIds == null || !dto.CategoryIds.Any())
+            throw new ArgumentException("Name, price, and at least one category are required.");
 
-        public async Task<List<ProductResponseDto>> CreateProductAsync(ProductDto productDto)
-        {
-            var product = _mapper.Map<Product>(productDto);
-            _context.Products.Add(product);
-            await _context.SaveChangesAsync();
-            return await GetAllProductsAsync();
-        }
+        p.Name = dto.Name;
+        p.Description = dto.Description;
+        p.Price = dto.Price;
+        p.Stock = dto.Stock;
 
-        public async Task<List<ProductResponseDto>> UpdateProductAsync(int id, ProductDto productDto)
-        {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null) return null;
+        p.ProductCategories.Clear();
+        foreach (var cid in dto.CategoryIds)
+            p.ProductCategories.Add(new ProductCategory { ProductId = p.Id, CategoryId = cid });
 
-            _mapper.Map(productDto, product);
-            await _context.SaveChangesAsync();
+        await _db.SaveChangesAsync();
+        return true;
+    }
 
-            return await GetAllProductsAsync();
-        }
-
-        public async Task<List<ProductResponseDto>> DeleteProductAsync(int id)
-        {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null) return null;
-
-            _context.Products.Remove(product);
-            await _context.SaveChangesAsync();
-
-            return await GetAllProductsAsync();
-        }
+    public async Task<bool> DeleteAsync(int id)
+    {
+        var p = await _db.Products.FindAsync(id);
+        if (p == null) return false;
+        _db.Products.Remove(p);
+        await _db.SaveChangesAsync();
+        return true;
     }
 }

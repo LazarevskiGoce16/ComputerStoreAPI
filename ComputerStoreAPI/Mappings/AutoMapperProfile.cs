@@ -8,10 +8,10 @@ namespace ComputerStoreAPI.Mappings
     {
         public AutoMapperProfile()
         {
-            CreateMap<Product, ProductResponseDto>();
+            CreateMap<Product, ProductDto>();
             CreateMap<ProductDto, Product>();
 
-            CreateMap<Category, CategoryResponseDto>();
+            CreateMap<Category, CategoryDto>();
             CreateMap<CategoryDto, Category>();
         }
     }

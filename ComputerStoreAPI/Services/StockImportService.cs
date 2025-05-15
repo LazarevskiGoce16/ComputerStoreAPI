@@ -1,59 +1,55 @@
-﻿using ComputerStoreAPI.DTOs;
+﻿using ComputerStoreAPI.Data;
+using ComputerStoreAPI.DTOs;
 using ComputerStoreAPI.Entities;
-using ComputerStoreAPI.Services;
+using Microsoft.EntityFrameworkCore;
 
-public class StockImportService : IStockImportService
+public class StockImportService
 {
-    private readonly IApplicationDbContext _context;
+    private readonly DataContext _db;
+    public StockImportService(DataContext db) { _db = db; }
 
-    public StockImportService(IApplicationDbContext context)
+    public async Task ImportAsync(List<StockImportDto> importList)
     {
-        _context = context;
-    }
-
-    public async Task ImportStockAsync(List<ProductStockDto> stockItems)
-    {
-        foreach (var item in stockItems)
+        foreach (var item in importList)
         {
-            var product = await _context.Products
-                .Include(p => p.Categories)
-                .FirstOrDefaultAsync(p => p.Name == item.Name);
-
-            var categories = new List<Category>();
-            foreach (var catName in item.Categories)
+            var categoryEntities = new List<Category>();
+            foreach (var cname in item.Categories)
             {
-                var trimmed = catName.Trim();
-                var category = await _context.Categories
-                    .FirstOrDefaultAsync(c => c.Name == trimmed);
-
-                if (category == null)
+                var cat = await _db.Categories.FirstOrDefaultAsync(c => c.Name == cname.Trim());
+                if (cat == null)
                 {
-                    category = new Category { Name = trimmed };
-                    _context.Categories.Add(category);
+                    cat = new Category { Name = cname.Trim() };
+                    _db.Categories.Add(cat);
+                    await _db.SaveChangesAsync();
                 }
-
-                categories.Add(category);
+                categoryEntities.Add(cat);
             }
 
+            var product = await _db.Products
+                .Include(p => p.ProductCategories)
+                .FirstOrDefaultAsync(p => p.Name == item.Name);
             if (product == null)
             {
                 product = new Product
                 {
                     Name = item.Name,
                     Price = item.Price,
-                    Quantity = item.Quantity,
-                    Categories = categories
+                    Stock = item.Quantity,
+                    ProductCategories = categoryEntities.Select(c => new ProductCategory { Category = c }).ToList()
                 };
-                _context.Products.Add(product);
+                _db.Products.Add(product);
             }
             else
             {
-                product.Quantity += item.Quantity;
+                product.Stock += item.Quantity;
                 product.Price = item.Price;
-                product.Categories = categories;
+                foreach (var cat in categoryEntities)
+                {
+                    if (!product.ProductCategories.Any(pc => pc.CategoryId == cat.Id))
+                        product.ProductCategories.Add(new ProductCategory { Product = product, Category = cat });
+                }
             }
+            await _db.SaveChangesAsync();
         }
-
-        await _context.SaveChangesAsync();
     }
 }
